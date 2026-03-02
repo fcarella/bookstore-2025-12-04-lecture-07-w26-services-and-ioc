@@ -4,23 +4,23 @@ import com.github.javafaker.Faker;
 import csd214.bookstore.entities.*;
 import csd214.bookstore.pojos.*;
 import csd214.bookstore.repositories.IRepository;
-import csd214.bookstore.repositories.ProductRepository;
+import csd214.bookstore.services.BookstoreService;
 
 import java.util.List;
 import java.util.Scanner;
 
 public class App {
-    // 1. Data Access Layer (Abstracted)
     private IRepository<ProductEntity> repository;
+    private BookstoreService service; // The Chef
 
+    // INJECTION: App doesn't use the 'new' keyword for repos anymore
+    public App(IRepository<ProductEntity> repository) {
+        this.repository = repository;
+        this.service = new BookstoreService(repository);
+    }
     // UI & Logic
     private CashTill cashTill = new CashTill();
     private Scanner input = new Scanner(System.in);
-
-    public App() {
-        // Instantiate the repository (Hiding JPA completely)
-        this.repository = new ProductRepository();
-    }
 
     public void shutdown() {
         if (repository != null) {
@@ -29,6 +29,7 @@ public class App {
     }
 
     public void run() {
+        System.out.println("Running on: " + repository.getDataSourceType());
         // Use the new count() method from our in-class exercise
         if (repository.count() == 0) {
             populate();
@@ -243,39 +244,45 @@ public class App {
     // ==========================================
     // 5. SELL ITEMS
     // ==========================================
+// Inside src/main/java/csd214/bookstore/App.java
+
     public void sellItem() {
+        // 1. Fetch current list to show the user
         List<ProductEntity> results = repository.findAll();
-        listAny();
-        System.out.println("Select index to sell:");
-        int idx = getIntInput();
-        if (idx < 0 || idx >= results.size()) return;
-
-        ProductEntity item = results.get(idx);
-
-        if (item instanceof PublicationEntity) {
-            PublicationEntity pub = (PublicationEntity) item;
-            if (pub.getCopies() > 0) {
-                pub.setCopies(pub.getCopies() - 1);
-                System.out.println("Sold: " + pub.getTitle());
-
-                cashTill.sellItem(new SaleableItem() {
-                    public void sellItem() {}
-                    public double getPrice() { return pub.getPrice(); }
-                });
-
-                repository.save(pub); // Persist the updated stock count
-
-            } else {
-                System.out.println("Out of stock!");
-            }
-        } else {
-            System.out.println("Sold " + item.getName());
-            cashTill.sellItem(new SaleableItem() {
-                public void sellItem() {}
-                public double getPrice() { return item.getPrice(); }
-            });
-            // Non-publication items in this demo have infinite stock
+        if (results.isEmpty()) {
+            System.out.println("Inventory is empty. Nothing to sell.");
+            return;
         }
+
+        // 2. Display the list so the user can choose an index
+        listAny();
+        System.out.print("Select index to sell: ");
+        int idx = getIntInput();
+
+        // 3. Validate the choice
+        if (idx < 0 || idx >= results.size()) {
+            System.out.println("Invalid selection.");
+            return;
+        }
+
+        // 4. Get the Database ID of the selected item
+        ProductEntity item = results.get(idx);
+        Long dbId = item.getId();
+
+        // 5. DELEGATION: Pass the ID to the Service (The Chef)
+        // The App doesn't care HOW the sale happens, it just tells the service to do it.
+        service.performSale(dbId);
+
+        // 6. Update the UI-side Cash Till
+        // We create a temporary SaleableItem wrapper to pass the price to the Till
+        cashTill.sellItem(new SaleableItem() {
+            @Override
+            public void sellItem() { /* Logic already handled by service */ }
+            @Override
+            public double getPrice() { return item.getPrice(); }
+        });
+
+        System.out.println("Transaction complete.");
     }
 
     // ==========================================
