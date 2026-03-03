@@ -1,58 +1,63 @@
-[This code serves as the teaching baseline for **Lecture 6: The Repository Pattern & Abstraction Layers**...](https://docs.google.com/document/d/1ICmy-4ladY91_VkwT9jGZWudQPdG6CUK_uyOCEr3mNs/edit?usp=sharing)
 ***
->NOTE
-> >this code was based on lab-4-starter
-# Bookstore CLI - Lecture 6 (Winter 2026)
-> **Baseline Codebase for Lecture 6: The Repository Pattern & Abstraction Layers**
 
-This repository represents the transition from raw JPA persistence (Lecture 5) to a professional **Tiered Architecture**. It demonstrates how to decouple application logic from database "plumbing" using the **Repository Design Pattern**.
+# Bookstore CLI - Lecture 7 (Winter 2026)
+> **Baseline Codebase for Lecture 7: Services, IoC, & Dependency Injection**
 
-## 🎯 Lecture 6 Learning Objectives
-* **Abstraction:** Hiding the `EntityManager` and `EntityTransaction` behind a clean interface.
-* **Generics:** Using `IRepository<T>` to create a reusable data access contract.
-* **The "Upsert" Strategy:** Implementing `save()` logic that automatically handles both `persist` (Insert) and `merge` (Update).
-* **Tiered Architecture:** Separating the **Presentation Layer** (`App.java`) from the **Data Access Layer** (`ProductRepository.java`).
+[**Click here for the Lecture 7 Notes**](https://docs.google.com/document/d/1CNWeKsbrgE8uDYgdh7PUsoQvBi3bSh4NAqlRU6gNyZk/edit?usp=sharing)
 
-## 🛠 Key Architectural Changes
-1. **New Package: `csd214.bookstore.repositories`**
-    * `IRepository.java`: The generic contract defining CRUD operations.
-    * `ProductRepository.java`: The concrete JPA implementation that encapsulates all transaction logic.
-2. **Refactored `App.java`**
-    * The `EntityManager` has been removed.
-    * The UI now interacts exclusively with the `IRepository` interface.
-3. **Repository Demo: `RepositoryApp.java`**
-    * A simplified standalone script used in class to demonstrate how clean client code becomes when using repositories.
+This repository demonstrates the final stage of "decoupling" in a raw Java application. We move away from tight coupling where the application creates its own dependencies, and instead move to an **Inversion of Control (IoC)** model where dependencies are **Injected**.
 
-## 🚀 In-Class Exercises Included
-This codebase is pre-configured to support the Lecture 6 exercises:
-* **Exercise 1 (Aggregate Queries):** The `count()` method in the repository for high-performance inventory counting.
-* **Exercise 2 (Bulk Operations):** The `deleteAll()` method (Menu Option 6: "System Reset") to demonstrate `executeUpdate()` and the performance risks of the N+1 problem.
+## 🎯 Lecture 7 Learning Objectives
+* **The Service Layer:** Implementing the "Chef" of the application to handle business rules.
+* **Inversion of Control (IoC):** Moving the "Wiring Phase" out of the application logic and into a central assembler (`Main.java`).
+* **Dependency Injection (DI):** Using Constructor Injection to pass repositories into services.
+* **Plug-and-Play Architecture:** Swapping between different storage strategies at runtime without changing a single line of business logic.
+
+## 🍽 The Restaurant Metaphor
+To understand this architecture, we use the **Chef and Waiter** analogy:
+*   **The Waiter (`App.java`):** The Presentation Layer. Takes orders (User Input) but doesn't know how to cook.
+*   **The Pantry (`IRepository`):** The Data Access Layer. Holds the ingredients (Data) but doesn't know the recipes.
+*   **The Chef (`BookstoreService`):** The Business Logic Layer. Receives the order from the Waiter, gets ingredients from the Pantry, applies the recipe (rules), and hands the result back.
+
+## 🛠 Supported Storage Strategies
+This codebase allows you to "plug in" different Pantries into the Chef at startup:
+1.  **In-Memory (ArrayList):** A volatile storage strategy using standard Java collections.
+2.  **H2 Database:** An in-memory SQL engine that runs inside your app (No Docker required!).
+3.  **MySQL Database:** Persistent production storage (Requires Docker).
+
+---
+
+## 🚀 How it Works (The IoC Container)
+The logic for choosing the repository has been moved to **`Main.java`**. When you start the application, you will see a prompt:
+
+```text
+Select Data Persistence Strategy:
+1. In-Memory (ArrayList)
+2. H2 Database (In-Memory SQL)
+3. MySQL Database (Production)
+```
+
+Once you choose, `Main.java` instantiates the specific repository class and **injects** it into the `App` and `Service` layers via their constructors. The `App` layer never uses the `new` keyword to create a repository.
 
 ---
 
 ## 📋 Prerequisites
 * **Java JDK:** 24
 * **Maven:** 3.9+
-* **Docker:** Required to run the MySQL database.
+* **Docker:** (Optional) Only required if choosing the MySQL strategy.
 
 ## 🚦 Getting Started
 
-### 1. Start the Database
-The application requires the MySQL container defined in `docker-compose.yml`.
+### 1. (Optional) Start Docker
+If you intend to use Option 3 (MySQL):
 ```bash
 docker-compose up -d
 ```
 
 ### 2. Compile and Run
-To run the main Bookstore application (Presentation Layer):
 ```bash
 mvn clean compile
 mvn exec:java -Dexec.mainClass="csd214.bookstore.Main"
-```
-
-To run the standalone Repository Demo:
-```bash
-mvn exec:java -Dexec.mainClass="csd214.bookstore.repositories.RepositoryApp"
 ```
 
 ---
@@ -60,13 +65,17 @@ mvn exec:java -Dexec.mainClass="csd214.bookstore.repositories.RepositoryApp"
 ## 🏗 Project Structure
 ```text
 src/main/java/csd214/bookstore/
-├── App.java                 # Presentation Layer (UI Logic)
-├── Main.java                # Entry Point
-├── entities/                # JPA Database Models (The "Vault")
-├── pojos/                   # Data Transfer Objects (DTOs / UI Logic)
-└── repositories/            # Data Access Layer (Abstraction Layer)
+├── App.java                 # Presentation Layer (The Waiter)
+├── Main.java                # IoC Container (The Assembler/Wiring)
+├── entities/                # Database Models
+├── pojos/                   # UI Data Transfer Objects
+├── services/                # Business Logic Layer (The Chef)
+│   └── BookstoreService.java
+└── repositories/            # Data Access Layer (The Pantry)
     ├── IRepository.java     # The Contract
-    └── ProductRepository.java # The Implementation
+    ├── InMemoryListRepository.java
+    ├── H2Repository.java
+    └── MySqlRepository.java
 ```
 
 ## ⚖️ License
